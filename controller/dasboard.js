@@ -1,23 +1,15 @@
 const express = require("express");
-const User = require("../model/user");
 const router = express.Router();
+const Transaction = require('../model/transaction'); // Import the Transaction model correctly
 const ErrorHandler = require("../utils/ErrorHandler");
-const catchAsyncErrors = require("../middleware/catchAsyncErrors");
-const jwt = require("jsonwebtoken");
-const Report = require('../model/reports'); // Mengimpor model Report dengan benar
-const { isAuthenticated, isAdmin } = require("../middleware/auth");
-const Validator = require("fastest-validator");
-const v = new Validator();
-const bcrypt = require('bcrypt');
-const UnitWork = require("../model/unitWork");
-const OfficerReport = require('../model/officerReport');
+const catchAsyncErrors = require('../middleware/catchAsyncErrors');
 
 // Get summary dashboard
 router.get(
     "/summary",
     catchAsyncErrors(async (req, res, next) => {
       try {
-        const reportCount = await Report.aggregate([
+        const transactionCount = await Transaction.aggregate([
           {
             $group: {
               _id: '$status',
@@ -25,74 +17,39 @@ router.get(
             }
           },
           {
-            $facet: {
-              reportCounts: [
-                {
-                  $group: {
-                    _id: null,
-                    Menunggu: { $sum: { $cond: [{ $eq: ["$_id", "Menunggu"] }, "$count", 0] } },
-                    Diproses: { $sum: { $cond: [{ $eq: ["$_id", "Diproses"] }, "$count", 0] } },
-                    Selesai: { $sum: { $cond: [{ $eq: ["$_id", "Selesai"] }, "$count", 0] } },
-                    Ditolak: { $sum: { $cond: [{ $eq: ["$_id", "Ditolak"] }, "$count", 0] } }
-                  }
-                }
-              ]
-            }
-          },
-          {
             $project: {
-              _id: 0,
-              reportCounts: { $arrayElemAt: ["$reportCounts", 0] }
-            }
-          },
-          {
-            $replaceRoot: {
-              newRoot: {
-                $mergeObjects: [
-                  { Menunggu: 0, Diproses: 0, Selesai: 0, Ditolak: 0 },
-                  "$reportCounts"
-                ]
-              }
-            }
-          },
-          {
-            $project: {
+              status: "$_id",
+              count: 1,
               _id: 0
             }
           }
         ]);
-  
-        res.status(200).json({
-          code: 200,
-          success: true,
-          data: reportCount[0], // Karena hasil akhir adalah array dengan satu objek
-        });
-      } catch (error) {
-        return next(new ErrorHandler(error.message, 500));
-      }
-    })
-  );
-  
 
-// Get all titles, longitudes, and latitudes of reports with status not equal to "Menunggu"
-router.get(
-    "/coordinates",
-    catchAsyncErrors(async (req, res, next) => {
-      try {
-        const reports = await Report.find(
-          { status: { $ne: 'Menunggu' } }, // Filter untuk status tidak sama dengan "Menunggu"
-          { title: 1, address: 1, longitude: 1, latitude: 1, _id: 0 } // Proyeksi untuk mengambil title, longitude, dan latitude
-        );
-  
+        const summary = {
+          Paid: 0,
+          Processed: 0,
+          Shipped: 0,
+          Success: 0,
+          Unpaid: 0
+        };
+
+        transactionCount.forEach(item => {
+          if (item.status === "Belum Dibayar") summary.Unpaid = item.count;
+          if (item.status === "Dibayar") summary.Paid = item.count;
+          if (item.status === "Diproses") summary.Processed = item.count;
+          if (item.status === "Dikirim") summary.Shipped = item.count;
+          if (item.status === "Selesai") summary.Success = item.count;
+        });
+
         res.status(200).json({
           code: 200,
           success: true,
-          data: reports,
+          data: summary,
         });
       } catch (error) {
         return next(new ErrorHandler(error.message, 500));
       }
     })
-  );
+);
 
 module.exports = router;

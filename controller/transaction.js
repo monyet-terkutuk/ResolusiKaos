@@ -24,7 +24,7 @@ router.post(
 
     const { body } = req;
 
-    // validation input data
+    // Validation input data
     const validationResponse = v.validate(body, transactionSchema);
 
     if (validationResponse !== true) {
@@ -48,6 +48,14 @@ router.post(
         });
       }
 
+      if (product.stock < body.quantity) {
+        return res.status(400).json({
+          code: 400,
+          status: 'error',
+          data: { error: 'Insufficient stock' },
+        });
+      }
+
       const subtotal = product.price * body.quantity;
       const ppn = subtotal * 0.11;
       const grandtotal = subtotal + ppn;
@@ -58,6 +66,10 @@ router.post(
         ppn,
         grandtotal,
       });
+
+      // Update product stock
+      product.stock -= body.quantity;
+      await product.save();
 
       // Populate product
       const populatedTransaction = await Transaction.findById(transaction._id).populate('product');
@@ -76,7 +88,6 @@ router.post(
     }
   })
 );
-
 // Get all transactions
 router.get(
   '/list',
@@ -88,13 +99,22 @@ router.get(
         .populate('user')
         .sort({ createdAt: -1 });
 
+          // Format values
+      const formattedTransactions = transactions.map(transaction => ({
+        ...transaction._doc,
+        subtotal: formatCurrency(transaction.subtotal),
+        ppn: formatCurrency(transaction.ppn),
+        grandtotal: formatCurrency(transaction.grandtotal),
+      }));
+
+
       res.status(200).json({
         meta: {
           message: 'Transactions retrieved successfully',
           code: 200,
           status: 'success',
         },
-        data: transactions,
+        data: formattedTransactions,
       });
     } catch (error) {
       console.error('Error:', error);
@@ -228,5 +248,10 @@ router.delete(
     }
   })
 );
+
+function formatCurrency(amount) {
+  if (isNaN(amount)) return 'Rp 0';
+  return `${amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}`;
+}
 
 module.exports = router;
