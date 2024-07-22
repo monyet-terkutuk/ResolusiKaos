@@ -4,77 +4,73 @@ const router = express.Router();
 const ErrorHandler = require("../utils/ErrorHandler");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
 const jwt = require("jsonwebtoken");
-const { sendMail, sendMailForgotPW } = require("../utils/sendMail");
-const sendToken = require("../utils/jwtToken");
 const { isAuthenticated, isAdmin } = require("../middleware/auth");
 const Validator = require("fastest-validator");
 const v = new Validator();
 const bcrypt = require('bcrypt');
-const UnitWork = require('../model/unitWork');
 
 // User register
 router.post("/register", async (req, res, next) => {
   try {
-  const userSchema = {
-    name: { type: "string", empty: false, max: 255 },
-    image: { type: "string", optional: true, max: 255 },
-    email: { type: "email", empty: false },
-    password: { type: "string", min: 8, empty: false },
-    role: { type: "string", optional: true, max: 255 },
-    unitWork: { type: "string", optional: true, max: 255 },
-  };
+    const userSchema = {
+      username: { type: "string", empty: false, max: 255 },
+      password: { type: "string", empty: false, max: 255 },
+      email: { type: "email", empty: false },
+      address: { type: "string", optional: true },
+      role: { type: "string", empty: false, max: 255 },
+    };
 
-  const { body } = req;
+    const { body } = req;
 
-  // validation input data
-  const validationResponse = v.validate(body, userSchema);
+    // validation input data
+    const validationResponse = v.validate(body, userSchema);
 
-  if (validationResponse !== true) {
-    return res.status(400).json({
-      code: 400,
-      status: "error",
-      data: {
-        error: "Validation failed",
-        details: validationResponse,
-      },
-    });
-  }
+    if (validationResponse !== true) {
+      return res.status(400).json({
+        code: 400,
+        status: "error",
+        data: {
+          error: "Validation failed",
+          details: validationResponse,
+        },
+      });
+    }
 
-  const isEmailUsed = await User.findOne({ email: body.email });
+    const isEmailUsed = await User.findOne({ email: body.email });
+    const isUsernameUsed = await User.findOne({ username: body.username });
 
-  if (isEmailUsed) {
-    return res.status(400).json({
-      code: 400,
-      status: "error",
-      data: {
-        error: "Email has been used",
-      },
-    });
-  }
+    if (isEmailUsed || isUsernameUsed) {
+      return res.status(400).json({
+        code: 400,
+        status: "error",
+        data: {
+          error: isEmailUsed ? "Email has been used" : "Username has been used",
+        },
+      });
+    }
 
-  const password = bcrypt.hashSync(body.password, 10);
+    const password = bcrypt.hashSync(body.password, 10);
 
-  try {
-    const user = await User.create({ ...body, password });
-    return res.json({
-      code: 200,
-      status: "success",
-      data: { 
-        id : user._id,
-        name: user.name,
-        image: user.image,
-        address: user.address,
-        role: user.role,
-        email: user.email,
-       },
-    });
-  } catch (error) {
-    return res.status(500).json({
-      code: 500,
-      status: "error",
-      data: error.message,
-    });
-  }
+    try {
+      const user = await User.create({ ...body, password });
+      return res.json({
+        code: 200,
+        status: "success",
+        data: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          address: user.address,
+          role: user.role,
+        },
+      });
+    } catch (error) {
+      return res.status(500).json({
+        code: 500,
+        status: "error",
+        data: error.message,
+      });
+    }
   } catch (error) {
     return next(new ErrorHandler(error.message, 400));
   }
@@ -105,6 +101,7 @@ router.post("/login", async (req, res, next) => {
 
     // Cari pengguna berdasarkan email
     const user = await User.findOne({ email: body.email });
+    console.log("find", user)
     if (!user || !user.password) {
       return res.status(401).json({
         meta: {
@@ -115,6 +112,9 @@ router.post("/login", async (req, res, next) => {
         data: null,
       });
     }
+
+    console.log("password :", body.password)
+    console.log("pw :", user.password)
 
     // Periksa kecocokan kata sandi
     const isPasswordCorrect = bcrypt.compareSync(body.password, user.password);
@@ -128,9 +128,6 @@ router.post("/login", async (req, res, next) => {
         data: null,
       });
     }
-
-    // Jika autentikasi berhasil, ambil unit kerja pengguna
-    const unitWork = await UnitWork.findById(user.unitWork);
 
     // Jika autentikasi berhasil, buat token JWT
     const payload = {
@@ -153,16 +150,10 @@ router.post("/login", async (req, res, next) => {
       },
       data: {
         id: user._id,
-        name: user.name,
-        image: user.image,
+        username: user.username,
+        email: user.email,
         address: user.address,
         role: user.role,
-        email: user.email,
-        unitWork: unitWork ? {
-          id: unitWork._id,
-          name: unitWork.name,
-          image: unitWork.image,
-        } : null,
         token: token,
       },
     });
@@ -187,29 +178,19 @@ router.get(
     try {
       const users = await User.find().sort({ createdAt: -1 });
 
-      const userData = await Promise.all(users.map(async (user) => {
-        const unit = await UnitWork.findById(user.unitWork);
-        return {
-          id: user._id,
-          name: user.name,
-          image: user.image,
-          address: user.address,
-          role: user.role,
-          unitWork: unit ? {
-            id: unit._id,
-            name: unit.name,
-          } : null,
-          email: user.email,
-        };
-      }));
-
       res.status(200).json({
         meta: {
-          message: "Authentication successful",
+          message: "Users retrieved successfully",
           code: 200,
           status: "success",
         },
-        data: userData
+        data: users.map(user => ({
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          address: user.address,
+          role: user.role,
+        })),
       });
     } catch (error) {
       console.error("Error:", error);

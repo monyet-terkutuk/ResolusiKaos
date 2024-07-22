@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Category = require('../model/category'); // pastikan path sesuai dengan struktur proyek Anda
+const Category = require('../model/category'); // Ensure path is correct according to your project structure
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const catchAsyncErrors = require('../middleware/catchAsyncErrors');
 const ErrorHandler = require('../utils/ErrorHandler');
@@ -12,29 +12,29 @@ router.post(
   '',
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
+    const categorySchema = {
+      name: { type: 'string', min: 3, empty: false },
+      image: { type: 'string', empty: false },
+    };
+
+    const { body } = req;
+
+    // Validate input data
+    const validationResponse = v.validate(body, categorySchema);
+
+    if (validationResponse !== true) {
+      return res.status(400).json({
+        code: 400,
+        status: 'error',
+        data: {
+          error: 'Validation failed',
+          details: validationResponse,
+        },
+      });
+    }
+
     try {
-      const categorySchema = {
-        name: { type: 'string', min: 3, empty: false },
-        image: { type: 'string', empty: false },
-      };
-
-      const { body } = req;
-
-      // Validasi input data
-      const validationResponse = v.validate(body, categorySchema);
-
-      if (validationResponse !== true) {
-        return res.status(400).json({
-          code: 400,
-          status: 'error',
-          data: {
-            error: 'Validation failed',
-            details: validationResponse,
-          },
-        });
-      }
-
-      // Buat kategori baru
+      // Create new category
       const category = await Category.create(body);
       return res.status(201).json({
         code: 201,
@@ -43,7 +43,6 @@ router.post(
           id: category._id,
           name: category.name,
           image: category.image,
-          category_id: category.category_id,
         },
       });
     } catch (error) {
@@ -57,9 +56,7 @@ router.get(
   '/list',
   catchAsyncErrors(async (req, res, next) => {
     try {
-      const categories = await Category.find().sort({
-        createdAt: -1,
-      });
+      const categories = await Category.find().sort({ createdAt: -1 });
       return res.status(200).json({
         code: 200,
         status: 'success',
@@ -76,10 +73,10 @@ router.delete(
   '/:id',
   isAuthenticated,
   catchAsyncErrors(async (req, res, next) => {
-    try {
-      const categoryId = req.params.id;
+    const categoryId = req.params.id;
 
-      // Cari kategori berdasarkan ID
+    try {
+      // Find category by ID
       const category = await Category.findById(categoryId);
 
       if (!category) {
@@ -90,7 +87,7 @@ router.delete(
         });
       }
 
-      // Hapus kategori
+      // Delete category
       await Category.findByIdAndDelete(categoryId);
 
       return res.status(200).json({

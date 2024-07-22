@@ -24,17 +24,17 @@ if (process.env.NODE_ENV !== "PRODUCTION") {
 
 // import routes
 const user = require("./controller/user");
-const unitWork = require("./controller/unitWork");
-const reports = require("./controller/report");
+const transaction = require("./controller/transaction");
+const product = require("./controller/product");
 const comment = require("./controller/comment");
 const category = require("./controller/category");
 const dashboard = require("./controller/dasboard");
 
-app.use("/user", user);
-app.use("/unit-work", unitWork);
-app.use("/reports", reports);
-app.use("/comment", comment);
-app.use("/category", category);
+app.use("/users", user);
+app.use("/products", product);
+app.use("/transactions", transaction);
+app.use("/comments", comment);
+app.use("/categories", category);
 app.use("/dashboard", dashboard);
 
 
