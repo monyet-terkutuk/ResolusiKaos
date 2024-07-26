@@ -52,4 +52,69 @@ router.get(
     })
 );
 
+// Total transactions per month with status "Selesai"
+router.get(
+  '/total-transactions-per-month',
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const currentYear = new Date().getFullYear();
+
+      const transactions = await Transaction.aggregate([
+        {
+          $match: {
+            status: 'Selesai',
+            createdAt: {
+              $gte: new Date(currentYear, 0, 1),
+              $lt: new Date(currentYear + 1, 0, 1),
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' },
+            },
+            totalTransactions: { $sum: 1 },
+            totalAmount: { $sum: '$grandtotal' },
+          },
+        },
+        {
+          $sort: {
+            '_id.year': 1,
+            '_id.month': 1,
+          },
+        },
+      ]);
+
+      // Create an array to hold the results for all 12 months
+      const monthlyTransactions = Array.from({ length: 12 }, (_, index) => ({
+        year: currentYear,
+        month: index + 1,
+        totalTransactions: 0,
+        totalAmount: 0,
+      }));
+
+      // Populate the array with actual transaction data
+      transactions.forEach(transaction => {
+        const monthIndex = transaction._id.month - 1;
+        monthlyTransactions[monthIndex] = {
+          year: transaction._id.year,
+          month: transaction._id.month,
+          totalTransactions: transaction.totalTransactions,
+          totalAmount: transaction.totalAmount,
+        };
+      });
+
+      res.status(200).json({
+        code: 200,
+        status: 'success',
+        data: monthlyTransactions,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
 module.exports = router;
