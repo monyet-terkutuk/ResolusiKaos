@@ -101,7 +101,6 @@ router.post("/login", async (req, res, next) => {
 
     // Cari pengguna berdasarkan email
     const user = await User.findOne({ email: body.email });
-    console.log("find", user)
     if (!user || !user.password) {
       return res.status(401).json({
         meta: {
@@ -112,9 +111,6 @@ router.post("/login", async (req, res, next) => {
         data: null,
       });
     }
-
-    console.log("password :", body.password)
-    console.log("pw :", user.password)
 
     // Periksa kecocokan kata sandi
     const isPasswordCorrect = bcrypt.compareSync(body.password, user.password);
@@ -170,7 +166,7 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
-// All users
+// Get all users
 router.get(
   "/list",
   isAuthenticated,
@@ -191,6 +187,42 @@ router.get(
           address: user.address,
           role: user.role,
         })),
+      });
+    } catch (error) {
+      console.error("Error:", error);
+      return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
+// Get user by ID
+router.get(
+  "/:id",
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const user = await User.findById(req.params.id);
+      if (!user) {
+        return res.status(404).json({
+          code: 404,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      res.status(200).json({
+        meta: {
+          message: "User retrieved successfully",
+          code: 200,
+          status: "success",
+        },
+        data: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+          address: user.address,
+          role: user.role,
+        },
       });
     } catch (error) {
       console.error("Error:", error);

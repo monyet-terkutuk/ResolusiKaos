@@ -88,6 +88,7 @@ router.post(
     }
   })
 );
+
 // Get all transactions
 router.get(
   '/list',
@@ -99,14 +100,13 @@ router.get(
         .populate('user')
         .sort({ createdAt: -1 });
 
-          // Format values
+      // Format values
       const formattedTransactions = transactions.map(transaction => ({
         ...transaction._doc,
         subtotal: formatCurrency(transaction.subtotal),
         ppn: formatCurrency(transaction.ppn),
         grandtotal: formatCurrency(transaction.grandtotal),
       }));
-
 
       res.status(200).json({
         meta: {
@@ -145,6 +145,36 @@ router.get(
         code: 200,
         message: 'Transaction retrieved successfully',
         data: transaction,
+      });
+    } catch (error) {
+      return next(new ErrorHandler(error.message, 500));
+    }
+  })
+);
+
+// Get transactions by user ID
+router.get(
+  '/user/:userId',
+  isAuthenticated,
+  catchAsyncErrors(async (req, res, next) => {
+    try {
+      const transactions = await Transaction.find({ user: req.params.userId })
+        .populate('product')
+        .populate('user')
+        .sort({ createdAt: -1 });
+
+      if (!transactions.length) {
+        return res.status(404).json({
+          code: 404,
+          message: 'No transactions found for this user',
+          data: null,
+        });
+      }
+
+      res.status(200).json({
+        code: 200,
+        message: 'Transactions retrieved successfully',
+        data: transactions,
       });
     } catch (error) {
       return next(new ErrorHandler(error.message, 500));
